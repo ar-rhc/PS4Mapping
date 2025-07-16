@@ -1,0 +1,202 @@
+{
+  "Default": {
+    "buttons": {
+      "touchpad": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "p"
+      },
+      "l3": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "left"
+      },
+      "square": {
+        "bttnamekey": "ps4-1"
+      },
+      "r3": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": true,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "d"
+      },
+      "ps": {
+        "modifiers": {
+          "ctrl": false,
+          "opt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "right"
+      },
+      "circle": {
+        "modifiers": {
+          "ctrl": false,
+          "opt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "right"
+      },
+      "cross": {
+        "modifiers": {
+          "ctrl": false,
+          "opt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "b"
+      },
+      "triangle": {
+        "modifiers": {
+          "ctrl": false,
+          "opt": false,
+          "shift": false,
+          "cmd": true
+        },
+        "key": "0"
+      }
+    },
+    "dpad": {
+      "down": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "down"
+      },
+      "right": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "right"
+      },
+      "left": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "left"
+      },
+      "up": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "up"
+      }
+    }
+  },
+  "Mail": {
+    "buttons": {
+      "square": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": true
+        },
+        "key": "backspace"
+      }
+    },
+    "dpad": {
+      "down": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "right"
+      },
+      "right": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "left"
+      },
+      "left": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "up"
+      },
+      "up": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "down"
+      }
+    }
+  },
+  "Adobe Lightroom Classic": {
+    "buttons": {
+      "square": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "left"
+      },
+      "circle": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "right"
+      },
+      "cross": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "left"
+      },
+      "triangle": {
+        "modifiers": {
+          "ctrl": false,
+          "alt": false,
+          "shift": false,
+          "cmd": false
+        },
+        "key": "right"
+      }
+    },
+    "dpad": {}
+  }
+}

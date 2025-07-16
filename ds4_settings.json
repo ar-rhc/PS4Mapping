@@ -1,0 +1,29 @@
+{
+  "alpha": 0.9,
+  "gyro_sensitivity": 600.0,
+  "damping_factor": 0.97,
+  "polling_rate": 10,
+  "orientation_offset": {
+    "roll": 0.0,
+    "pitch": 0.0,
+    "yaw": 0.0
+  },
+  "axis_locks": {
+    "roll": false,
+    "pitch": false,
+    "yaw": false
+  },
+  "locked_axis": null,
+  "enabled": false,
+  "threshold1_enabled": true,
+  "threshold1_value": 64,
+  "threshold2_enabled": true,
+  "threshold2_value": 128,
+  "threshold3_enabled": true,
+  "threshold3_value": 192,
+  "duration": 50,
+  "intensity": 255,
+  "led_r": 21,
+  "led_g": 0,
+  "led_b": 0
+}
