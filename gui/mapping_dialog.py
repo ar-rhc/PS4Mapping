@@ -26,7 +26,7 @@ class MappingConfigFrame(tk.Frame):
     }
     
     MAPPING_FILE = os.path.expanduser("~/.hammerspoon/mappings.json")
-    PS4_IMAGE = os.path.join(os.path.dirname(__file__), "../assets/ps4.png")
+    PS4_IMAGE = os.path.join(os.path.dirname(__file__), "../assets/ps4_processed.png")  # Use the new pre-processed image
     MOD_SYMBOLS = {'cmd': '⌘', 'shift': '⇧', 'alt': '⌥', 'ctrl': '⌃'}
     
     # Keycode map for macOS to handle Option key combinations correctly.
@@ -116,37 +116,44 @@ class MappingConfigFrame(tk.Frame):
         self.scaled_buttons = {}
         
     def on_resize(self, event=None):
+        # This can be simplified or removed if the image size is fixed
         self.load_and_place_image()
 
     def load_and_place_image(self):
+        """Loads the pre-processed controller image and places it on the canvas."""
         self.canvas.delete("all")
         canvas_width = self.canvas.winfo_width()
         canvas_height = self.canvas.winfo_height()
 
         try:
+            # The image is already processed, so we just load it.
             img = Image.open(self.PS4_IMAGE)
-            img_aspect = img.width / img.height
-            canvas_aspect = canvas_width / canvas_height
-            if img_aspect > canvas_aspect:
-                new_width = canvas_width
-                self.scale_factor = new_width / img.width
-            else:
-                new_height = canvas_height
-                self.scale_factor = new_height / img.height
-                new_width = int(new_height * img_aspect)
-            
-            new_height = int(new_width / img_aspect)
-            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
             self.ps4_img = ImageTk.PhotoImage(img)
-            img_x = (canvas_width - new_width) // 2
-            img_y = (canvas_height - new_height) // 2
+            
+            # Center the image on the canvas
+            img_x = (canvas_width - img.width) // 2
+            img_y = (canvas_height - img.height) // 2
             
             self.canvas.create_image(img_x, img_y, anchor='nw', image=self.ps4_img)
-            self.scaled_buttons = {btn: (img_x + int(x * self.scale_factor), img_y + int(y * self.scale_factor)) for btn, (x, y) in self.BUTTON_COORDS.items()}
+            
+            # The original image was 750px wide, our new one is 600px.
+            # The coordinates in BUTTON_COORDS are based on the original 750px image.
+            # We need to scale them to the new 600px image size.
+            # The original image size was 750x422. The new size is 600x338.
+            # The scale factor is 600 / 750 = 0.8
+            self.scale_factor = 600 / 750 
+
+            # Adjust button coordinates based on the centered image position and new scale
+            self.scaled_buttons = {
+                btn: (img_x + int(x * self.scale_factor), img_y + int(y * self.scale_factor))
+                for btn, (x, y) in self.BUTTON_COORDS.items()
+            }
+
         except Exception as e:
             self.canvas.create_text(canvas_width/2, canvas_height/2, text=f"[Image not found]\n{e}", fill="red")
-        self.place_buttons()
         
+        self.place_buttons()
+
     def place_buttons(self):
         self.button_widgets.clear()
         self.key_labels.clear()

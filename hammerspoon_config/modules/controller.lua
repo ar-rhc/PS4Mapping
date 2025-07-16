@@ -196,162 +196,78 @@ function postKeyEvent(mapping)
     end
 end
 
--- Ultra-low latency button event handling with immediate activation
-local function handleButtonEvents(newButtons, oldButtons, buttonMappings)
-    if not buttonMappings then return end
-    for button, isPressed in pairs(newButtons) do
-        local wasPressed = oldButtons[button] or false
-        
-        -- Immediate activation: trigger on button press (rising edge)
-        if isPressed and not wasPressed then
-            -- OPTIMIZATION: Process critical buttons immediately
-            if criticalButtons[button] then
-                -- Use immediate execution for critical buttons
-                postKeyEvent(buttonMappings[button])
-            else
-                -- Use timer for non-critical buttons to avoid blocking
-                hs.timer.doAfter(0.001, function() postKeyEvent(buttonMappings[button]) end)
-            end
-        end
-    end
-end
-
--- Optimized D-pad event handling with press-down activation
-local function handleDpadEvents(newDpad, oldDpad, dpadMappings)
-    if not dpadMappings then return end
-    if newDpad ~= "none" and newDpad ~= oldDpad then
-        postKeyEvent(dpadMappings[newDpad])
-    end
-end
-
--- Binary packet parser for DS4 (8 bytes)
-local function parseBinaryPacket(data)
-    if not data or #data ~= 8 then return nil end
-    local bytes = {string.byte(data, 1, 8)}
-    local header = bytes[1]
-    if header ~= 0x44 then return nil end -- 'D' for DS4
-    local button_low = bytes[2]
-    local button_high = bytes[3]
-    local dpad_value = bytes[4]
-    local timestamp_low = bytes[5] + bytes[6] * 256
-    local timestamp_high = bytes[7] + bytes[8] * 256
-    local button_flags = button_low + (button_high * 256)
-    local button_names = {
-        'square', 'cross', 'circle', 'triangle',
-        'l1', 'r1', 'l2_pressed', 'r2_pressed',
-        'share', 'options', 'l3', 'r3',
-        'ps_button', 'touchpad_pressed', 'unused1', 'unused2'
-    }
-    local buttons = {}
-    for i, name in ipairs(button_names) do
-        buttons[name] = (button_flags & (1 << (i-1))) ~= 0
-    end
-    local dpad_names = {'none', 'up', 'down', 'left', 'right', 'ne', 'se', 'sw', 'nw'}
-    local dpad = dpad_names[dpad_value+1] or 'none'
-    local timestamp = timestamp_low + (timestamp_high * 65536)
-    return {buttons = buttons, dpad = dpad, timestamp = timestamp / 1000.0}
-end
-
+-- New, simplified data processing function for string-based events
 function controller.processData(data)
-    if not data then 
-        return 
-    end
-    
-    local decoded
-    local status, result = pcall(json.decode, data)
-    if status and result then
-        decoded = result
-    else
-        -- Try binary protocol
-        decoded = parseBinaryPacket(data)
-        if not decoded then 
-            return 
-        end
-    end
-    
-    local appName = getActiveAppName()
-    local profile = getProfile(appName)
-    if not profile then 
-        return 
-    end
-    
-    -- Handle event-based format from hybrid controller
-    if decoded.event_type and decoded.button then
-        
-        -- Handle button press events
-        if decoded.event_type == "press" then
-            -- Check if it's a d-pad button using pre-compiled pattern
-            local dpad_direction = decoded.button:match(dpad_pattern)
-            if dpad_direction then
-                if profile.dpad and profile.dpad[dpad_direction] then
-                    postKeyEvent(profile.dpad[dpad_direction])
-                end
-            else
-                -- Regular button - check if it's critical for immediate processing
-                if profile.buttons and profile.buttons[decoded.button] then
-                    if criticalButtons[decoded.button] then
-                        -- Immediate execution for critical buttons
-                        postKeyEvent(profile.buttons[decoded.button])
-                    else
-                        -- Deferred execution for non-critical buttons
-                        hs.timer.doAfter(0.001, function() 
-                            postKeyEvent(profile.buttons[decoded.button]) 
-                        end)
-                    end
-                end
-            end
-        end
-        -- Note: We ignore release events for now to avoid double-triggering
+    -- Expected format: "eventType,buttonName" (e.g., "press,cross")
+    local eventType, buttonName = data:match("([^,]+),([^,]+)")
+
+    if not eventType or not buttonName then
+        -- print("Invalid data format received: " .. data)
         return
     end
-    
-    -- Handle legacy format with buttons/dpad objects
-    local oldState = previousState[appName] or {buttons={}, dpad="none"}
-    handleButtonEvents(decoded.buttons, oldState.buttons, profile.buttons)
-    handleDpadEvents(decoded.dpad, oldState.dpad, profile.dpad)
-    previousState[appName] = decoded
+
+    if eventType == "press" then
+        local appName = getActiveAppName()
+        local profile = getProfile(appName)
+        
+        if not profile then return end
+
+        local mapping = nil
+        local dpadMatch = buttonName:match(dpad_pattern)
+
+        if dpadMatch then
+            -- It's a D-pad button
+            if profile.dpad then
+                mapping = profile.dpad[dpadMatch]
+            end
+        else
+            -- It's a regular button
+            if profile.buttons then
+                mapping = profile.buttons[buttonName]
+            end
+        end
+
+        if mapping then
+            postKeyEvent(mapping)
+        end
+    end
+    -- "release" events are ignored for now, but can be handled here in the future.
 end
 
--- ## UDP SOCKET FOR PYTHON SCRIPT ## --
-local udpSocket = nil
-local UDP_PORT = 12345 -- Must match the port in your Python script
 
-function controller:start()
-    if udpSocket then return end
-    print("Starting controller listener...")
-    
-    -- Create UDP socket
-    udpSocket = hs.socket.udp.new()
-    
-    -- Set up the callback
-    udpSocket:setCallback(function(data, host, port)
-        if data then
+-- ## UDP LISTENER ## --
+function controller.startListener(host, port)
+    -- Stop any existing listener before starting a new one
+    controller.stopListener()
+
+    -- Create a UDP server socket, which binds and sets the callback in one step.
+    -- This is the correct and most efficient way to create a UDP listener in Hammerspoon.
+    local sock = hs.socket.udp.server(port, function(data, from_host, from_port)
+        if data and #data > 0 then
             controller.processData(data)
         end
     end)
+
+    if not sock then
+        print(string.format("🛑 Failed to create or bind UDP server on port %d", port))
+        return
+    end
     
-    -- Listen on the port
-    local listenSuccess = udpSocket:listen(UDP_PORT)
-    if listenSuccess then
-        udpSocket:receive()
-        print("✅ UDP socket listening on port", UDP_PORT)
-        hs.notify.new({title="Controller Active", informativeText="DS4 mapping is ON."}):send()
-    else
-        print("❌ Failed to listen on port", UDP_PORT)
-        hs.notify.new({title="Controller Error", informativeText="Could not listen on port " .. UDP_PORT}):send()
-        udpSocket = nil
+    -- Start receiving data.
+    sock:receive()
+
+    print(string.format("🎧 Controller UDP listener started on %s:%d", host, port))
+    
+    -- Store the socket so we can close it later
+    controller.listener_socket = sock
+end
+
+function controller.stopListener()
+    if controller.listener_socket then
+        controller.listener_socket:close()
+        controller.listener_socket = nil
+        print("🛑 Controller UDP listener stopped.")
     end
 end
 
-function controller:stop()
-    if udpSocket then
-        udpSocket:close()
-        udpSocket = nil
-    end
-    if watcher then
-        watcher:stop()
-    end
-end
-
-controller:start()
 return controller

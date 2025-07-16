@@ -125,36 +125,48 @@ class UDPManager:
     
     def send_digital_changes(self, changes: Dict[str, Any]) -> bool:
         """
-        Send digital input changes via UDP
-        
+        Send digital input changes via UDP using a simple, efficient string format.
+        Format: "event_type,button_name" (e.g., "press,cross" or "release,square")
+
         Args:
-            changes: Dictionary containing button/d-pad changes
+            changes: Dictionary containing button/d-pad changes.
             
         Returns:
-            True if sent successfully, False otherwise
+            True if any message was sent, False otherwise.
         """
+        message_sent = False
         try:
-            # Send individual events for each change, as expected by controller.lua
-            for button, pressed in changes.get('buttons', {}).items():
-                if pressed:  # Only send event on button press, not release
-                    event = {
-                        "event_type": "press",
-                        "button": button,
-                        "timestamp": time.time()
-                    }
-                    self.send_json(event)
+            # Handle button presses and releases
+            for button, state in changes.get('buttons', {}).items():
+                # state is 'press' or 'release'
+                message = f"{state},{button}".encode('utf-8')
+                self.send_packet(message)
+                message_sent = True
 
+            # Handle D-pad changes
             dpad_direction = changes.get('dpad')
-            if dpad_direction and dpad_direction != "none":
-                 event = {
-                    "event_type": "press",
-                    "button": f"dpad_{dpad_direction}",
-                    "timestamp": time.time()
-                }
-                 self.send_json(event)
+            if dpad_direction:
+                # For D-pad, we can treat it as a continuous press/release cycle.
+                # When a new direction is pressed, we can conceptually "release" the old one
+                # and "press" the new one. For simplicity, we just send the current state.
+                # A "none" direction indicates release.
+                event_type = "press" if dpad_direction != "none" else "release"
+                button_name = f"dpad_{dpad_direction}" if dpad_direction != "none" else "dpad"
+                
+                # To avoid sending "release,dpad_none", we handle the release case specially.
+                if event_type == "release":
+                    # We don't know which dpad was released, so we can send a generic release
+                    # or handle it based on previous state if needed. For now, we'll just ignore "none".
+                    pass
+                else:
+                    message = f"{event_type},{button_name}".encode('utf-8')
+                    self.send_packet(message)
+                    message_sent = True
             
-            self.packets_sent += 1
-            return True
+            if message_sent:
+                self.packets_sent += 1
+
+            return message_sent
         except Exception as e:
             print(f"Error sending digital changes: {e}")
             self.packets_saved += 1
