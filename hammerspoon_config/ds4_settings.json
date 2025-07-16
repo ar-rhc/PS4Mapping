@@ -1,0 +1,24 @@
+{
+    "alpha": 0.98,
+    "gyro_sensitivity": 1.0,
+    "damping_factor": 0.1,
+    "polling_rate": 1,
+    "axis_locks": {
+        "roll": false,
+        "pitch": false,
+        "yaw": false
+    },
+    "locked_axis": null,
+    "tactile_enabled": false,
+    "threshold1_enabled": true,
+    "threshold1_value": 64,
+    "threshold2_enabled": true,
+    "threshold2_value": 128,
+    "threshold3_enabled": true,
+    "threshold3_value": 192,
+    "tactile_duration": 50,
+    "tactile_intensity": 255,
+    "led_r": 0,
+    "led_g": 0,
+    "led_b": 255
+}

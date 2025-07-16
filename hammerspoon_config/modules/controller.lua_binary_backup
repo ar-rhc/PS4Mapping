@@ -1,0 +1,236 @@
+-- Hammerspoon Controller - Optimized Version
+-- This script contains all logic and now loads its mappings from an external mappings.json file.
+
+local eventtap = require("hs.eventtap")
+local json = require("hs.json")
+local fs = require("hs.fs")
+local pathwatcher = require("hs.pathwatcher")
+
+local controller = {}
+local MAPPINGS_FILE = os.getenv("HOME") .. "/.hammerspoon/mappings.json"
+
+-- Add a portable file read function
+local function readFile(path)
+    local f = io.open(path, "r")
+    if not f then return nil end
+    local content = f:read("*a")
+    f:close()
+    return content
+end
+
+-- ## MAPPING LOADER ## --
+function controller.loadMappings()
+    local content = readFile(MAPPINGS_FILE)
+    if not content then
+        print("⚠️ Controller mappings file not found at: " .. MAPPINGS_FILE)
+        return {}
+    end
+    
+    local status, decoded = pcall(json.decode, content)
+    if not status then
+        print("🛑 Error decoding mappings.json: " .. tostring(decoded))
+        return {}
+    end
+    
+    print("✅ Controller mappings reloaded.")
+    return decoded
+end
+
+-- Load mappings on start
+controller.mappings = controller.loadMappings()
+
+-- Watch for changes to the mappings file and reload them automatically
+local watcher = pathwatcher.new(MAPPINGS_FILE, function()
+    controller.mappings = controller.loadMappings()
+    -- Clear profile cache when mappings change
+    controller.profileCache = {}
+end):start()
+
+-- ## OPTIMIZATION: PROFILE CACHE ## --
+controller.profileCache = {}
+
+-- ## EVENT PROCESSING LOGIC ## --
+
+local previousState = {}
+local bttTriggerTimestamps = {}
+
+local function translateKey(key)
+    local keyTranslations = {['backspace'] = 'delete', ['enter'] = 'return', ['esc'] = 'escape'}
+    return keyTranslations[key:lower()] or key:lower()
+end
+
+-- Optimized fuzzy matching function for profile names
+local function fuzzyMatch(profileName, appName)
+    if not profileName or not appName then return false end
+    
+    -- Convert to lowercase for comparison
+    local profileLower = profileName:lower()
+    local appLower = appName:lower()
+    
+    -- Exact match
+    if profileLower == appLower then return true end
+    
+    -- Check if profile name contains app name or vice versa
+    if profileLower:find(appLower, 1, true) or appLower:find(profileLower, 1, true) then
+        return true
+    end
+    
+    -- Split into words and check for word matches
+    local profileWords = {}
+    for word in profileLower:gmatch("%S+") do
+        table.insert(profileWords, word)
+    end
+    
+    local appWords = {}
+    for word in appLower:gmatch("%S+") do
+        table.insert(appWords, word)
+    end
+    
+    -- Check if any significant words match (ignore common words)
+    local commonWords = {["the"] = true, ["a"] = true, ["an"] = true, ["and"] = true, ["or"] = true, ["of"] = true, ["in"] = true, ["on"] = true, ["at"] = true, ["to"] = true, ["for"] = true, ["with"] = true, ["by"] = true, ["classic"] = true, ["pro"] = true, ["lite"] = true, ["adobe"] = true}
+    
+    for _, profileWord in ipairs(profileWords) do
+        if not commonWords[profileWord] and #profileWord > 2 then
+            for _, appWord in ipairs(appWords) do
+                if not commonWords[appWord] and #appWord > 2 then
+                    if profileWord == appWord or profileWord:find(appWord, 1, true) or appWord:find(profileWord, 1, true) then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Optimized profile lookup with caching
+local function getProfile(appName)
+    -- Check cache first
+    if controller.profileCache[appName] then
+        return controller.profileCache[appName]
+    end
+    
+    -- Try exact match first
+    local profile = controller.mappings[appName]
+    
+    -- If no exact match, try fuzzy matching
+    if not profile then
+        for profileName, profileData in pairs(controller.mappings) do
+            if profileName ~= "Default" and fuzzyMatch(profileName, appName) then
+                profile = profileData
+                break
+            end
+        end
+    end
+    
+    -- Fall back to Default profile
+    if not profile then
+        profile = controller.mappings["Default"]
+    end
+    
+    -- Cache the result
+    controller.profileCache[appName] = profile
+    return profile
+end
+
+function postKeyEvent(mapping)
+    if not mapping then return end
+
+    if mapping.bttnamekey then
+        local now = hs.timer.secondsSinceEpoch()
+        local lastTriggered = bttTriggerTimestamps[mapping.bttnamekey] or 0
+        local cooldown = 0.1  -- Reduced from 0.5s to 0.1s for faster response
+
+        if (now - lastTriggered) > cooldown then
+            bttTriggerTimestamps[mapping.bttnamekey] = now
+            local appleScriptCommand = 'tell application "BetterTouchTool" to trigger_named "' .. mapping.bttnamekey .. '"'
+            hs.osascript.applescript(appleScriptCommand)
+        end
+        return
+    end
+
+    if mapping.key then
+        local mods = mapping.modifiers or {}
+        local key = translateKey(mapping.key)
+        
+        -- Convert modifier names to Hammerspoon format
+        local hsMods = {}
+        if mods.cmd then table.insert(hsMods, "cmd") end
+        if mods.ctrl then table.insert(hsMods, "ctrl") end
+        if mods.opt then table.insert(hsMods, "alt") end  -- 'opt' becomes 'alt' in Hammerspoon
+        if mods.shift then table.insert(hsMods, "shift") end
+        
+        hs.eventtap.keyStroke(hsMods, key)
+    end
+end
+
+-- Optimized button event handling with press-down activation
+local function handleButtonEvents(newButtons, oldButtons, buttonMappings)
+    if not buttonMappings then return end
+    for button, isPressed in pairs(newButtons) do
+        local wasPressed = oldButtons[button] or false
+        
+        -- Press-down activation: trigger on button press (rising edge)
+        if isPressed and not wasPressed then
+            postKeyEvent(buttonMappings[button])
+        end
+    end
+end
+
+-- Optimized D-pad event handling with press-down activation
+local function handleDpadEvents(newDpad, oldDpad, dpadMappings)
+    if not dpadMappings then return end
+    if newDpad ~= "none" and newDpad ~= oldDpad then
+        postKeyEvent(dpadMappings[newDpad])
+    end
+end
+
+-- Optimized data processing
+function controller.processData(data)
+    local status, decoded = pcall(json.decode, data)
+    if not status or not decoded then return end
+
+    local activeApp = hs.application.frontmostApplication()
+    local appName = activeApp and activeApp:name() or "Default"
+    
+    -- Get profile using cached lookup
+    local profile = getProfile(appName)
+    if not profile then return end
+
+    local oldState = previousState[appName] or {buttons={}, dpad="none"}
+    handleButtonEvents(decoded.buttons, oldState.buttons, profile.buttons)
+    handleDpadEvents(decoded.dpad, oldState.dpad, profile.dpad)
+    previousState[appName] = decoded
+end
+
+-- ## UDP SOCKET FOR PYTHON SCRIPT ## --
+local udpSocket = nil
+local UDP_PORT = 12345 -- Must match the port in your Python script
+
+function controller:start()
+    if udpSocket then return end
+    print("Starting controller listener...")
+    udpSocket = hs.socket.udp.new()
+    udpSocket:setCallback(controller.processData)
+    if udpSocket:listen(UDP_PORT) then
+        udpSocket:receive()
+        hs.notify.new({title="Controller Active", informativeText="DS4 mapping is ON."}):send()
+    else
+        hs.notify.new({title="Controller Error", informativeText="Could not listen on port " .. UDP_PORT}):send()
+        udpSocket = nil
+    end
+end
+
+function controller:stop()
+    if udpSocket then
+        udpSocket:close()
+        udpSocket = nil
+    end
+    if watcher then
+        watcher:stop()
+    end
+end
+
+controller:start()
+return controller
